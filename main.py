@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from time import time
+from time import time, ctime
 from random import randint, random
 from faker import Faker
 from pymongo import ASCENDING
@@ -7,7 +7,8 @@ from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 
 # CONSTS
-NB_USERS = 10000
+NB_USERS = 1000
+RESET_DB_EVERY_X_FRAMES = 8
 
 # MongoDB Connection Details
 MONGODB_CONNECTION_STRING = "mongodb://localhost"
@@ -18,7 +19,7 @@ MSGS_COLL_NAME = "messages"
 # Simulate Time Progression
 DEBUG = False
 TIME_FRAME_DURATION = 5 if DEBUG else 5 * 60  # 5 minutes
-TOTAL_DURATION = 5 * 60 if DEBUG else 1 * 60 * 60  # 1 hour
+TOTAL_DURATION = 5 * 60 if DEBUG else 3 * 60 * 60  # 3 hour
 
 # Initialize Faker
 fake = Faker()
@@ -207,9 +208,11 @@ def read_messages():
 
 # Initialization
 def init():
+    print(ctime(), "Start reset DB.")
     client.drop_database(DATABASE_NAME)
-    insert_users()
     create_indexes()
+    insert_users()
+    print(ctime(), "Done")
 
 
 if __name__ == "__main__":
@@ -218,11 +221,17 @@ if __name__ == "__main__":
     stop_time = start_time + TOTAL_DURATION
     operations = [insert_messages, update_messages, read_messages, delete_messages]
     max_size = max(len(op.__name__) for op in operations)
+    frames = set()
+    frames.add(0)
     while int(time()) < stop_time:
         f_start = time()
         now = int(f_start)
         frame_nb = (now - start_time) // TIME_FRAME_DURATION
         action_nb = frame_nb % len(operations)
+        if frame_nb % RESET_DB_EVERY_X_FRAMES == 0 and frame_nb not in frames:
+            init()
+            frames.add(frame_nb)
         op = operations[action_nb]
         op()
-        print('Operation {: >{width}} took {: >10} seconds.'.format(op.__name__, round(time() - f_start, 2), width=str(max_size)))
+        if DEBUG:
+            print('Operation {: >{width}} took {: >10} seconds.'.format(op.__name__, round(time() - f_start, 2), width=str(max_size)))
